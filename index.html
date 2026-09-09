@@ -233,7 +233,9 @@ function looksValueSeeking(query) {
   const ql = query.toLowerCase();
   return VALUE_SEEKING_WORDS.some((w) => ql.includes(w));
 }
-  const q = new Set(wordsOf(query));
+function scorePassage(query, passage, weight) {
+  const qRaw = new Set(wordsOf(query));
+  const q = expandQueryWords(qRaw); // include synonyms, e.g. "cap" -> also credit "exceed"
   const p = wordsOf(passage);
   if (q.size === 0 || p.length === 0) return 0;
   let sum = 0;
@@ -241,10 +243,12 @@ function looksValueSeeking(query) {
   q.forEach((w) => {
     if (pset.has(w)) {
       let ww = weight[w] || 1;
+      if (!qRaw.has(w)) ww *= 0.7; // synonym-only matches count a bit less than exact matches
       if (/[0-9£$%]/.test(w)) ww *= 1.8; // bonus for numeric/currency tokens
       sum += ww;
     }
   });
+  if (looksValueSeeking(query) && /[0-9£$%]/.test(passage)) sum += 2.5;
   return sum / Math.log(p.length + 2);
 }
 
