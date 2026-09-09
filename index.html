@@ -68,7 +68,7 @@
   .log-item:last-child{border-bottom:none;}
   .log-meta{display:flex; justify-content:space-between; color:var(--muted); font-size:11px; margin-bottom:4px;}
   .result{border:1px solid var(--border); border-radius:8px; padding:12px; font-size:13px; line-height:1.6; margin-top:10px;}
-  mark{background:linear-gradient(90deg,var(--blue),var(--amber)); color:#000; padding:1px 3px; border-radius:3px;}
+  mark{background:var(--amber); color:#1a1200; padding:1px 3px; border-radius:3px; font-weight:600;}
   .msg{font-size:12px; margin-top:8px;}
   .msg.warn{color:var(--amber);}
   .msg.muted{color:var(--muted);}
@@ -141,10 +141,10 @@
       </div>
 
       <h2 class="section">Recall</h2>
-      <div class="row">
-        <input id="queryInput" placeholder="Ask anything about your captured documents…" />
-        <button class="ghost" id="micBtn" title="Speak">🎤</button>
-        <button class="primary" id="recallBtn">Recall</button>
+      <div class="row" style="align-items:stretch;">
+        <input id="queryInput" placeholder="Ask anything about your captured documents…" style="flex:1;" />
+        <button class="ghost" id="micBtn" title="Speak" style="flex:0 0 auto; width:42px; padding:8px;">🎤</button>
+        <button class="primary" id="recallBtn" style="flex:0 0 auto; width:88px;">Recall</button>
       </div>
       <div id="searchMsg"></div>
       <div id="searchResult"></div>
@@ -207,7 +207,32 @@ function buildWeights(passages) {
   return weight;
 }
 
-function scorePassage(query, passage, weight) {
+// small legal-domain synonym map so "cap" can find a clause that only says "exceed", etc.
+const SYNONYMS = {
+  cap: ["exceed", "maximum", "limit", "ceiling", "not exceed"],
+  maximum: ["cap", "exceed", "limit", "ceiling"],
+  limit: ["cap", "exceed", "maximum", "ceiling"],
+  deadline: ["days", "period", "notice", "within"],
+  fee: ["amount", "cost", "payment", "sum"],
+  cost: ["fee", "amount", "payment", "sum"],
+  liable: ["liability", "indemnify", "indemnifying", "damages"],
+  sue: ["liability", "damages", "claim", "indemnify"],
+};
+// if a query looks like it's fishing for a number/figure, passages with numbers get a boost
+const VALUE_SEEKING_WORDS = ["cap","limit","maximum","ceiling","exceed","amount","fee","cost","how much","days","period","deadline","percent","rate","penalty"];
+
+function expandQueryWords(qWordsSet) {
+  const expanded = new Set(qWordsSet);
+  qWordsSet.forEach((w) => {
+    if (SYNONYMS[w]) SYNONYMS[w].forEach((s) => wordsOf(s).forEach((sw) => expanded.add(sw)));
+  });
+  return expanded;
+}
+
+function looksValueSeeking(query) {
+  const ql = query.toLowerCase();
+  return VALUE_SEEKING_WORDS.some((w) => ql.includes(w));
+}
   const q = new Set(wordsOf(query));
   const p = wordsOf(passage);
   if (q.size === 0 || p.length === 0) return 0;
