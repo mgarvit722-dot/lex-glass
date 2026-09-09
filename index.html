@@ -120,6 +120,8 @@
         <button class="ghost" id="stopBtn" style="display:none;">Stop Capture</button>
       </div>
       <div class="scanning" id="scanningLabel" style="display:none;">Scanning…</div>
+      <div class="msg warn" id="ocrErrorMsg" style="display:none;"></div>
+      <div class="msg muted" id="ocrEngineMsg"></div>
 
       <label class="toggle">
         <span>PII Redaction</span>
@@ -255,18 +257,29 @@ function activeMatter() {
 
 /* ---------------- capture ---------------- */
 async function startCapture() {
+  $("ocrErrorMsg").style.display = "none";
   try {
     const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
     state.stream = stream;
     state.recording = true;
-    $("video").srcObject = stream;
+    const video = $("video");
+    video.srcObject = stream;
     stream.getVideoTracks()[0].addEventListener("ended", stopCapture);
     state.currentSession = { startTs: Date.now(), lastTs: Date.now(), text: "" };
-    state.ocrTimer = setInterval(runOcrPass, 5000);
     renderAll();
+
+    // wait for the video to actually have real dimensions before OCR can run on it
+    await new Promise((resolve) => {
+      if (video.readyState >= 2 && video.videoWidth > 0) return resolve();
+      video.addEventListener("loadedmetadata", () => resolve(), { once: true });
+      setTimeout(resolve, 3000); // fallback in case the event never fires
+    });
+
+    runOcrPass();                                  // run one immediately, don't wait 5s
+    state.ocrTimer = setInterval(runOcrPass, 5000);
   } catch (e) {
     console.error(e);
-    alert("Could not start screen capture: " + e.message);
+    showOcrError("Could not start screen capture: " + e.message);
   }
 }
 
@@ -283,22 +296,40 @@ function stopCapture() {
   renderAll();
 }
 
+function showOcrError(msg) {
+  const el = $("ocrErrorMsg");
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
 async function runOcrPass() {
   if (!state.recording || !state.activeId) return;
+
+  if (typeof Tesseract === "undefined") {
+    showOcrError("OCR engine failed to load from the CDN — check your internet connection or an ad-blocker/extension that may be blocking cdn.jsdelivr.net, then reload the page.");
+    return;
+  }
+
   const video = $("video");
-  if (!video.videoWidth) return;
+  if (!video.videoWidth || !video.videoHeight) {
+    showOcrError("Waiting for the shared screen video to be ready — if this keeps showing, try stopping and starting capture again.");
+    return;
+  }
+
   const canvas = $("canvas");
   const cropTop = Math.round(video.videoHeight * 0.06); // exclude browser chrome at top
+  const h = Math.max(1, video.videoHeight - cropTop);
   canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight - cropTop;
+  canvas.height = h;
   const ctx = canvas.getContext("2d");
-  ctx.drawImage(video, 0, cropTop, video.videoWidth, canvas.height, 0, 0, video.videoWidth, canvas.height);
+  ctx.drawImage(video, 0, cropTop, video.videoWidth, h, 0, 0, video.videoWidth, h);
 
   $("scanningLabel").style.display = "block";
   try {
     const { data } = await Tesseract.recognize(canvas, "eng");
     const text = (data.text || "").trim();
     if (text) {
+      $("ocrErrorMsg").style.display = "none";
       const sess = state.currentSession;
       const sim = sess.text ? jaccardSimilarity(sess.text.slice(-400), text) : 0;
       if (sim < 0.9) {
@@ -307,9 +338,12 @@ async function runOcrPass() {
         renderLog();
         renderStatus();
       }
+    } else {
+      showOcrError("Last scan found no readable text on screen — make sure the shared window/tab actually shows document text, not a blank area.");
     }
   } catch (e) {
     console.error("OCR error", e);
+    showOcrError("OCR failed on the last scan: " + e.message);
   }
   $("scanningLabel").style.display = "none";
 }
@@ -497,6 +531,14 @@ $("micBtn").addEventListener("click", startMic);
 $("genTimeBtn").addEventListener("click", generateTimeEntries);
 
 renderAll();
+
+window.addEventListener("load", () => {
+  if (typeof Tesseract === "undefined") {
+    $("ocrEngineMsg").textContent = "⚠ OCR engine (Tesseract) did not load — check your connection or ad-blocker, then reload.";
+  } else {
+    $("ocrEngineMsg").textContent = "OCR engine ready.";
+  }
+});
 </script>
 </body>
 </html>
