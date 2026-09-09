@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LEX-GLASS</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+  :root{
+    --blue:#3B82F6; --violet:#8B5CF6; --amber:#F59E0B;
+    --bg:#050505; --panel:#0b0f17; --border:#1e293b;
+    --text:#cbd5e1; --muted:#64748b;
+  }
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--text); margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
+  }
+  .wrap{max-width:1100px; margin:0 auto; padding:28px 20px 80px;}
+  header{
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap;
+    gap:16px; border-bottom:1px solid var(--border); padding-bottom:24px; margin-bottom:24px;
+  }
+  .brandrow{display:flex; align-items:center; gap:14px;}
+  h1.word{
+    font-size:44px; font-weight:900; margin:0; letter-spacing:-1px; line-height:1;
+    background:linear-gradient(90deg,var(--blue),var(--violet),var(--amber));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .sub{color:var(--muted); font-size:13px; margin-top:4px; max-width:360px;}
+  .matterbar{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  select, input, button, textarea{
+    font-family:inherit; font-size:13px; background:var(--panel);
+    border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px 10px;
+  }
+  button{cursor:pointer; transition:box-shadow .2s ease, transform .1s ease;}
+  button.primary{
+    background:linear-gradient(90deg,var(--blue),var(--violet),var(--amber));
+    color:#fff; font-weight:600; border:none;
+  }
+  button.primary:hover{ box-shadow:0 0 24px rgba(139,92,246,.45); transform:translateY(-1px); }
+  button.ghost{background:var(--panel);}
+  .status{font-size:12px; color:var(--muted); display:flex; align-items:center; gap:6px; margin-bottom:20px;}
+  .dot{width:7px; height:7px; border-radius:50%; background:var(--border); display:inline-block;}
+  .dot.on{background:#10b981;}
+  .empty{
+    text-align:center; padding:80px 20px; border:1px dashed var(--border); border-radius:12px; color:var(--muted);
+  }
+  .grid{display:grid; grid-template-columns:1fr; gap:28px;}
+  @media(min-width:860px){ .grid{grid-template-columns:2fr 3fr;} }
+  .panel{border:1px solid var(--border); border-radius:10px; padding:14px; background:var(--panel);}
+  .video-box{
+    position:relative; border:1px solid var(--border); border-radius:10px; overflow:hidden;
+    aspect-ratio:16/9; background:#000; display:flex; align-items:center; justify-content:center; margin-bottom:12px;
+  }
+  video{width:100%; height:100%; object-fit:cover;}
+  .rec-badge{
+    position:absolute; top:8px; left:8px; background:rgba(0,0,0,.6); border-radius:20px;
+    padding:4px 10px; font-size:11px; display:flex; align-items:center; gap:6px;
+  }
+  .pulse{width:7px; height:7px; border-radius:50%; background:var(--amber); animation:pulse 1.3s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+  .row{display:flex; gap:8px; margin-bottom:10px;}
+  .row > *{flex:1;}
+  label.toggle{display:flex; align-items:center; justify-content:space-between; font-size:13px; margin-bottom:10px;}
+  h2.section{font-size:13px; color:var(--muted); text-transform:none; margin:0 0 8px;}
+  .log-item{border-bottom:1px solid var(--border); padding:10px 0; font-size:13px;}
+  .log-item:last-child{border-bottom:none;}
+  .log-meta{display:flex; justify-content:space-between; color:var(--muted); font-size:11px; margin-bottom:4px;}
+  .result{border:1px solid var(--border); border-radius:8px; padding:12px; font-size:13px; line-height:1.6; margin-top:10px;}
+  mark{background:linear-gradient(90deg,var(--blue),var(--amber)); color:#000; padding:1px 3px; border-radius:3px;}
+  .msg{font-size:12px; margin-top:8px;}
+  .msg.warn{color:var(--amber);}
+  .msg.muted{color:var(--muted);}
+  table{width:100%; border-collapse:collapse; font-size:12px;}
+  th,td{text-align:left; padding:6px 8px; border-bottom:1px solid var(--border);}
+  th{color:var(--muted); font-weight:500;}
+  .scanning{font-size:11px; color:var(--muted); margin-bottom:8px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brandrow">
+      <svg width="46" height="46" viewBox="0 0 100 100">
+        <defs>
+          <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#3B82F6"/><stop offset="55%" stop-color="#8B5CF6"/><stop offset="100%" stop-color="#F59E0B"/>
+          </linearGradient>
+        </defs>
+        <circle cx="50" cy="50" r="34" fill="none" stroke="url(#g)" stroke-width="4"/>
+        <circle cx="50" cy="50" r="18" fill="none" stroke="url(#g)" stroke-width="2.5" opacity=".6"/>
+        <circle cx="30" cy="26" r="1.6" fill="#fff"/><circle cx="70" cy="72" r="1.2" fill="#fff"/>
+      </svg>
+      <div>
+        <h1 class="word">LEX-GLASS</h1>
+        <div class="sub">Turns what you read and hear into privilege-safe memory and defensible time entries — automatically, as you work.</div>
+      </div>
+    </div>
+    <div class="matterbar">
+      <select id="matterSelect"><option value="">No matters yet</option></select>
+      <input id="newMatterName" placeholder="New matter name" style="width:150px" />
+      <button class="primary" id="addMatterBtn">+ Add</button>
+    </div>
+  </header>
+
+  <div class="status"><span class="dot" id="statusDot"></span><span id="statusText">No active matter — add one to begin</span></div>
+
+  <div id="emptyState" class="empty">No matter selected — add or choose one above to begin.</div>
+
+  <div id="mainGrid" class="grid" style="display:none;">
+    <div>
+      <div class="video-box">
+        <video id="video" autoplay muted></video>
+        <div class="rec-badge" id="recBadge" style="display:none;"><span class="pulse"></span> Recording</div>
+      </div>
+      <canvas id="canvas" style="display:none;"></canvas>
+      <div class="row">
+        <button class="primary" id="startBtn">Start Capture Session</button>
+        <button class="ghost" id="stopBtn" style="display:none;">Stop Capture</button>
+      </div>
+      <div class="scanning" id="scanningLabel" style="display:none;">Scanning…</div>
+
+      <label class="toggle">
+        <span>PII Redaction</span>
+        <input type="checkbox" id="redactionToggle" checked />
+      </label>
+      <div class="row">
+        <input id="keywordInput" placeholder="Sensitive keywords, comma-separated" />
+        <button class="ghost" id="addKeywordBtn">Add</button>
+      </div>
+      <div id="keywordList" style="font-size:11px; color:var(--muted); margin-top:-4px;"></div>
+    </div>
+
+    <div>
+      <h2 class="section">Memory Log</h2>
+      <div class="panel" id="logPanel" style="margin-bottom:20px; max-height:200px; overflow-y:auto;">
+        <div class="log-item" id="logEmpty" style="color:var(--muted);">No captures yet for this matter.</div>
+      </div>
+
+      <h2 class="section">Recall</h2>
+      <div class="row">
+        <input id="queryInput" placeholder="Ask anything about your captured documents…" />
+        <button class="ghost" id="micBtn" title="Speak">🎤</button>
+        <button class="primary" id="recallBtn">Recall</button>
+      </div>
+      <div id="searchMsg"></div>
+      <div id="searchResult"></div>
+
+      <h2 class="section" style="margin-top:24px;">Time Entries</h2>
+      <button class="ghost" id="genTimeBtn">Generate Today's Time Entries</button>
+      <div id="timeTableWrap"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------------- state ---------------- */
+const state = {
+  matters: {},        // id -> { name, keywords:[], sessions:[{startTs,lastTs,text}], captureCount:0 }
+  activeId: null,
+  stream: null,
+  recording: false,
+  ocrTimer: null,
+  currentSession: null // {startTs, lastTs, text}
+};
+
+/* ---------------- helpers ---------------- */
+const $ = (id) => document.getElementById(id);
+
+const PII_PATTERNS = [
+  /\b\d{3}-\d{2}-\d{4}\b/g,               // SSN
+  /\b[A-Z]{5}\d{4}[A-Z]\b/g,              // PAN
+  /\b\d{4}\s?\d{4}\s?\d{4}\b/g,           // Aadhaar-style
+  /\b(?:\d[ -]*?){13,16}\b/g,             // card numbers
+  /\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g,        // email
+  /\b(?:\+?\d{1,3}[-\s]?)?\d{10}\b/g,     // phone
+];
+
+function redact(text, keywords) {
+  let out = text;
+  PII_PATTERNS.forEach((re) => { out = out.replace(re, "[REDACTED]"); });
+  keywords.filter(Boolean).forEach((kw) => {
+    if (!kw.trim()) return;
+    const esc = kw.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    out = out.replace(new RegExp(esc, "gi"), "[REDACTED]");
+  });
+  return out;
+}
+
+function wordsOf(str) {
+  return (str.toLowerCase().match(/[a-z0-9£$%]+/g) || []).filter((w) => w.length > 2);
+}
+
+// build inverse-frequency weights across all passages for a matter
+function buildWeights(passages) {
+  const df = {}; // in how many passages a word appears
+  passages.forEach((p) => {
+    const seen = new Set(wordsOf(p));
+    seen.forEach((w) => { df[w] = (df[w] || 0) + 1; });
+  });
+  const n = Math.max(1, passages.length);
+  const weight = {};
+  Object.keys(df).forEach((w) => { weight[w] = Math.log((n + 1) / df[w]) + 1; });
+  return weight;
+}
+
+function scorePassage(query, passage, weight) {
+  const q = new Set(wordsOf(query));
+  const p = wordsOf(passage);
+  if (q.size === 0 || p.length === 0) return 0;
+  let sum = 0;
+  const pset = new Set(p);
+  q.forEach((w) => {
+    if (pset.has(w)) {
+      let ww = weight[w] || 1;
+      if (/[0-9£$%]/.test(w)) ww *= 1.8; // bonus for numeric/currency tokens
+      sum += ww;
+    }
+  });
+  return sum / Math.log(p.length + 2);
+}
+
+function splitSentences(text) {
+  return text.split(/(?<=[.;!?])\s+/).filter((s) => s.trim().length > 0);
+}
+
+function jaccardSimilarity(a, b) {
+  const sa = new Set(wordsOf(a)), sb = new Set(wordsOf(b));
+  if (sa.size === 0 || sb.size === 0) return 0;
+  let inter = 0;
+  sa.forEach((w) => { if (sb.has(w)) inter++; });
+  return inter / (sa.size + sb.size - inter);
+}
+
+/* ---------------- matters ---------------- */
+function addMatter() {
+  const name = $("newMatterName").value.trim();
+  if (!name) return;
+  const id = "m_" + Date.now();
+  state.matters[id] = { name, keywords: [], sessions: [] };
+  state.activeId = id;
+  $("newMatterName").value = "";
+  renderAll();
+}
+
+function selectMatter(id) {
+  state.activeId = id || null;
+  renderAll();
+}
+
+function activeMatter() {
+  return state.activeId ? state.matters[state.activeId] : null;
+}
+
+/* ---------------- capture ---------------- */
+async function startCapture() {
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+    state.stream = stream;
+    state.recording = true;
+    $("video").srcObject = stream;
+    stream.getVideoTracks()[0].addEventListener("ended", stopCapture);
+    state.currentSession = { startTs: Date.now(), lastTs: Date.now(), text: "" };
+    state.ocrTimer = setInterval(runOcrPass, 5000);
+    renderAll();
+  } catch (e) {
+    console.error(e);
+    alert("Could not start screen capture: " + e.message);
+  }
+}
+
+function stopCapture() {
+  if (state.stream) state.stream.getTracks().forEach((t) => t.stop());
+  state.stream = null;
+  state.recording = false;
+  if (state.ocrTimer) clearInterval(state.ocrTimer);
+  state.ocrTimer = null;
+  if (state.currentSession && state.currentSession.text.trim() && state.activeId) {
+    state.matters[state.activeId].sessions.push(state.currentSession);
+  }
+  state.currentSession = null;
+  renderAll();
+}
+
+async function runOcrPass() {
+  if (!state.recording || !state.activeId) return;
+  const video = $("video");
+  if (!video.videoWidth) return;
+  const canvas = $("canvas");
+  const cropTop = Math.round(video.videoHeight * 0.06); // exclude browser chrome at top
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight - cropTop;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(video, 0, cropTop, video.videoWidth, canvas.height, 0, 0, video.videoWidth, canvas.height);
+
+  $("scanningLabel").style.display = "block";
+  try {
+    const { data } = await Tesseract.recognize(canvas, "eng");
+    const text = (data.text || "").trim();
+    if (text) {
+      const sess = state.currentSession;
+      const sim = sess.text ? jaccardSimilarity(sess.text.slice(-400), text) : 0;
+      if (sim < 0.9) {
+        sess.text = (sess.text + "\n" + text).trim();
+        sess.lastTs = Date.now();
+        renderLog();
+        renderStatus();
+      }
+    }
+  } catch (e) {
+    console.error("OCR error", e);
+  }
+  $("scanningLabel").style.display = "none";
+}
+
+/* ---------------- keywords ---------------- */
+function addKeywords() {
+  const m = activeMatter();
+  if (!m) return;
+  const raw = $("keywordInput").value.trim();
+  if (!raw) return;
+  raw.split(",").map((s) => s.trim()).filter(Boolean).forEach((k) => {
+    if (!m.keywords.includes(k)) m.keywords.push(k);
+  });
+  $("keywordInput").value = "";
+  renderKeywords();
+}
+
+/* ---------------- search ---------------- */
+function runSearch() {
+  const q = $("queryInput").value.trim();
+  $("searchMsg").innerHTML = "";
+  $("searchResult").innerHTML = "";
+  if (!q || !state.activeId) return;
+  const m = activeMatter();
+  const redactionOn = $("redactionToggle").checked;
+
+  const allSessionTexts = m.sessions.map((s) => redactionOn ? redact(s.text, m.keywords) : s.text);
+  if (allSessionTexts.length === 0) {
+    checkOtherMatters(q) || ($("searchMsg").innerHTML = '<div class="msg muted">No matching captures found.</div>');
+    return;
+  }
+
+  // gather all sentences across sessions with a back-reference
+  let allSentences = [];
+  allSessionTexts.forEach((text, idx) => {
+    splitSentences(text).forEach((s) => allSentences.push({ s, idx }));
+  });
+  const weight = buildWeights(allSentences.map((x) => x.s));
+
+  let best = null, bestScore = 0;
+  allSentences.forEach((item) => {
+    const sc = scorePassage(q, item.s, weight);
+    if (sc > bestScore) { bestScore = sc; best = item; }
+  });
+
+  if (best && bestScore > 0.5) {
+    const sentences = splitSentences(allSessionTexts[best.idx]);
+    const i = sentences.indexOf(best.s);
+    const context = sentences.slice(Math.max(0, i - 1), i + 2).map((s) =>
+      s === best.s ? "<mark>" + escapeHtml(s) + "</mark>" : escapeHtml(s)
+    ).join(" ");
+    $("searchResult").innerHTML = `<div class="result">${context}</div>`;
+  } else {
+    if (!checkOtherMatters(q)) {
+      $("searchMsg").innerHTML = '<div class="msg muted">No matching captures found.</div>';
+    }
+  }
+}
+
+function checkOtherMatters(q) {
+  let foundElsewhere = false;
+  Object.entries(state.matters).forEach(([id, m]) => {
+    if (id === state.activeId) return;
+    m.sessions.forEach((s) => {
+      splitSentences(s.text).forEach((sent) => {
+        const w = buildWeights([sent]);
+        if (scorePassage(q, sent, w) > 0.5) foundElsewhere = true;
+      });
+    });
+  });
+  if (foundElsewhere) {
+    $("searchMsg").innerHTML = '<div class="msg warn">Query blocked — matches exist under a different matter. Switch matters to view.</div>';
+  }
+  return foundElsewhere;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* ---------------- mic ---------------- */
+function startMic() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { alert("Speech recognition isn't supported in this browser — try Chrome."); return; }
+  const rec = new SR();
+  rec.lang = "en-US";
+  rec.onresult = (e) => {
+    $("queryInput").value = e.results[0][0].transcript;
+    runSearch();
+  };
+  rec.start();
+}
+
+/* ---------------- time entries ---------------- */
+function generateTimeEntries() {
+  const m = activeMatter();
+  if (!m || m.sessions.length === 0) { $("timeTableWrap").innerHTML = '<div class="msg muted">No captures yet.</div>'; return; }
+  const redactionOn = $("redactionToggle").checked;
+  const rows = m.sessions.map((s) => {
+    const hours = Math.max(0.1, Math.round(((s.lastTs - s.startTs) / 3600000) * 10) / 10 || 0.1);
+    const text = redactionOn ? redact(s.text, m.keywords) : s.text;
+    const desc = text.split(/\s+/).slice(0, 10).join(" ");
+    return { time: new Date(s.startTs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), hours, desc, matter: m.name };
+  });
+  let html = "<table><thead><tr><th>Time</th><th>Hrs</th><th>Description</th><th>Matter</th></tr></thead><tbody>";
+  rows.forEach((r) => {
+    html += `<tr><td>${r.time}</td><td>${r.hours.toFixed(1)}</td><td>${escapeHtml(r.desc)}</td><td>${escapeHtml(r.matter)}</td></tr>`;
+  });
+  html += "</tbody></table>";
+  $("timeTableWrap").innerHTML = html;
+}
+
+/* ---------------- render ---------------- */
+function renderAll() {
+  renderMatterSelect();
+  renderStatus();
+  renderKeywords();
+  renderLog();
+  const has = !!state.activeId;
+  $("emptyState").style.display = has ? "none" : "block";
+  $("mainGrid").style.display = has ? "grid" : "none";
+  $("startBtn").style.display = state.recording ? "none" : "block";
+  $("stopBtn").style.display = state.recording ? "block" : "none";
+  $("recBadge").style.display = state.recording ? "flex" : "none";
+}
+
+function renderMatterSelect() {
+  const sel = $("matterSelect");
+  sel.innerHTML = "";
+  const ids = Object.keys(state.matters);
+  if (ids.length === 0) {
+    sel.innerHTML = '<option value="">No matters yet</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">Select matter…</option>' +
+    ids.map((id) => `<option value="${id}" ${id === state.activeId ? "selected" : ""}>${escapeHtml(state.matters[id].name)}</option>`).join("");
+}
+
+function renderStatus() {
+  const m = activeMatter();
+  $("statusDot").className = "dot" + (m ? " on" : "");
+  if (!m) { $("statusText").textContent = "No active matter — add one to begin"; return; }
+  const words = m.sessions.reduce((sum, s) => sum + wordsOf(s.text).length, 0) +
+    (state.currentSession ? wordsOf(state.currentSession.text).length : 0);
+  $("statusText").textContent = `Matter Wall enforced · ${words} words captured`;
+}
+
+function renderKeywords() {
+  const m = activeMatter();
+  $("keywordList").textContent = m && m.keywords.length ? "Keywords: " + m.keywords.join(", ") : "";
+}
+
+function renderLog() {
+  const m = activeMatter();
+  const panel = $("logPanel");
+  if (!m) { panel.innerHTML = '<div class="log-item" style="color:var(--muted);">No matter selected.</div>'; return; }
+  const sessions = [...m.sessions];
+  if (state.currentSession && state.currentSession.text.trim()) sessions.push(state.currentSession);
+  if (sessions.length === 0) {
+    panel.innerHTML = '<div class="log-item" style="color:var(--muted);">No captures yet for this matter.</div>';
+    return;
+  }
+  const redactionOn = $("redactionToggle").checked;
+  panel.innerHTML = sessions.slice().reverse().map((s) => {
+    const text = redactionOn ? redact(s.text, m.keywords) : s.text;
+    return `<div class="log-item">
+      <div class="log-meta"><span>${new Date(s.startTs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – ${new Date(s.lastTs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span><span>${escapeHtml(m.name)}</span></div>
+      <div>${escapeHtml(text.slice(0, 160))}${text.length > 160 ? "…" : ""}</div>
+    </div>`;
+  }).join("");
+}
+
+/* ---------------- wire up events ---------------- */
+$("addMatterBtn").addEventListener("click", addMatter);
+$("newMatterName").addEventListener("keydown", (e) => { if (e.key === "Enter") addMatter(); });
+$("matterSelect").addEventListener("change", (e) => selectMatter(e.target.value));
+$("startBtn").addEventListener("click", startCapture);
+$("stopBtn").addEventListener("click", stopCapture);
+$("redactionToggle").addEventListener("change", () => { renderLog(); });
+$("addKeywordBtn").addEventListener("click", addKeywords);
+$("keywordInput").addEventListener("keydown", (e) => { if (e.key === "Enter") addKeywords(); });
+$("recallBtn").addEventListener("click", runSearch);
+$("queryInput").addEventListener("keydown", (e) => { if (e.key === "Enter") runSearch(); });
+$("micBtn").addEventListener("click", startMic);
+$("genTimeBtn").addEventListener("click", generateTimeEntries);
+
+renderAll();
+</script>
+</body>
+</html>
